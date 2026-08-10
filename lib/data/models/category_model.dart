@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class CategoryModel {
   final String id;
@@ -22,10 +24,47 @@ class CategoryModel {
   static void addCustomCategory(CategoryModel category) {
     if (!_customCategories.any((c) => c.id == category.id)) {
       _customCategories.add(category);
+      _saveCustomCategories();
     }
   }
 
   static List<CategoryModel> get customCategories => List.unmodifiable(_customCategories);
+
+  static Future<void> _saveCustomCategories() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = _customCategories.map((c) => {
+        'id': c.id,
+        'name': c.name,
+        'iconCodePoint': c.icon.codePoint,
+        'color': c.color.value,
+        'bgColor': c.bgColor.value,
+        'type': c.type,
+      }).toList();
+      await prefs.setString('custom_categories_key', jsonEncode(list));
+    } catch (_) {}
+  }
+
+  static Future<void> loadCustomCategories() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonStr = prefs.getString('custom_categories_key');
+      if (jsonStr != null && jsonStr.isNotEmpty) {
+        final List<dynamic> list = jsonDecode(jsonStr);
+        _customCategories.clear();
+        for (final item in list) {
+          _customCategories.add(CategoryModel(
+            id: item['id'],
+            name: item['name'],
+            icon: IconData(item['iconCodePoint'], fontFamily: 'MaterialIcons'),
+            color: Color(item['color']),
+            bgColor: Color(item['bgColor']),
+            type: item['type'],
+          ));
+        }
+      }
+    } catch (_) {}
+  }
 
   static List<CategoryModel> get defaultExpenseCategories => const [
         CategoryModel(

@@ -56,33 +56,20 @@ class HematYukAppBar extends StatelessWidget implements PreferredSizeWidget {
   }
 
   Widget _buildLogo() {
-    return Container(
+    return Image.asset(
+      'assets/images/logo.png',
       width: 36,
       height: 36,
-      decoration: BoxDecoration(
-        color: AppColors.navy,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          const Icon(Icons.account_balance_wallet_rounded,
-              color: Colors.white, size: 18),
-          Positioned(
-            right: 4,
-            top: 4,
-            child: Container(
-              width: 10,
-              height: 10,
-              decoration: const BoxDecoration(
-                color: AppColors.primaryBright,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.arrow_upward_rounded,
-                  color: Colors.white, size: 7),
-            ),
-          ),
-        ],
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stackTrace) => Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: AppColors.navy,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Icon(Icons.account_balance_wallet_rounded,
+            color: Colors.white, size: 18),
       ),
     );
   }

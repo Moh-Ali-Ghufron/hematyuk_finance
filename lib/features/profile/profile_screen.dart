@@ -4,11 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/widgets/app_bar_widget.dart';
 import '../../data/models/category_model.dart';
-
 import '../../data/repositories/auth_repository.dart';
 import '../../data/repositories/transaction_repository.dart';
 
@@ -237,7 +238,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                 );
                 if (confirm == true) {
-                  ref.read(currentUserProvider.notifier).state = null;
+                  ref.read(currentUserProvider.notifier).setUser(null);
                   if (context.mounted) context.go('/login');
                 }
               },
@@ -335,24 +336,36 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: () {
-                    final current = ref.read(currentUserProvider);
-                    if (current != null) {
-                      ref.read(currentUserProvider.notifier).state = current.copyWith(
-                        displayName: nameCtrl.text.trim(),
-                        email: emailCtrl.text.trim(),
+                  onPressed: () async {
+                    final newName = nameCtrl.text.trim();
+                    final newEmail = emailCtrl.text.trim();
+                    if (newName.isEmpty || newEmail.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Nama dan Email tidak boleh kosong!',
+                              style: AppTextStyles.bodyMedium.copyWith(color: Colors.white)),
+                          backgroundColor: AppColors.expense,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                      return;
+                    }
+                    await ref.read(currentUserProvider.notifier).updateProfile(
+                          displayName: newName,
+                          email: newEmail,
+                        );
+                    if (ctx.mounted) Navigator.pop(ctx);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Profil berhasil diperbarui!',
+                              style: AppTextStyles.bodyMedium.copyWith(color: Colors.white)),
+                          backgroundColor: AppColors.primaryDark,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
                       );
                     }
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Profil berhasil diperbarui!',
-                            style: AppTextStyles.bodyMedium.copyWith(color: Colors.white)),
-                        backgroundColor: AppColors.primaryDark,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    );
                   },
                   child: Text('Simpan', style: AppTextStyles.headingSmall.copyWith(color: Colors.white)),
                 ),
@@ -603,23 +616,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             child: Text('Tutup', style: AppTextStyles.labelMedium.copyWith(color: AppColors.textSecondary)),
           ),
           ElevatedButton.icon(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Row(
-                    children: [
-                      const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
-                      const SizedBox(width: 8),
-                      Text('Data berhasil diekspor! (${transactions.length} transaksi)',
-                          style: AppTextStyles.bodyMedium.copyWith(color: Colors.white)),
-                    ],
-                  ),
-                  backgroundColor: AppColors.primaryDark,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              );
+              await _exportCsv(context, transactions);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryDark,
@@ -633,10 +632,64 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
+  Future<void> _exportCsv(BuildContext context, List transactions) async {
+    try {
+      final buffer = StringBuffer();
+      buffer.writeln('ID,Tanggal,Jenis,Kategori,Jumlah (IDR),Keterangan');
+      for (final t in transactions) {
+        final cat = CategoryModel.findById(t.categoryId);
+        final dateStr = t.date.toIso8601String().substring(0, 10);
+        final typeStr = t.isIncome ? 'Pemasukan' : 'Pengeluaran';
+        final amountStr = t.amount.toStringAsFixed(0);
+        final noteStr = '"${t.note.replaceAll('"', '""')}"';
+        buffer.writeln('${t.id},$dateStr,$typeStr,${cat.name},$amountStr,$noteStr');
+      }
+
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/laporan_hematyuk_${DateTime.now().millisecondsSinceEpoch}.csv');
+      await file.writeAsString(buffer.toString());
+
+      await Share.shareXFiles([XFile(file.path)], text: 'Laporan Keuangan HematYuk Finance');
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Text('Data berhasil diekspor! (${transactions.length} transaksi)',
+                    style: AppTextStyles.bodyMedium.copyWith(color: Colors.white)),
+              ],
+            ),
+            backgroundColor: AppColors.primaryDark,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal mengekspor data: $e'),
+            backgroundColor: AppColors.expense,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   // ---- NOTIFIKASI ----
-  void _showNotificationSettings(BuildContext context) {
-    bool dailyReminder = true;
-    TimeOfDay reminderTime = const TimeOfDay(hour: 20, minute: 0);
+  void _showNotificationSettings(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    bool dailyReminder = prefs.getBool('notif_daily_enabled') ?? true;
+    final int hour = prefs.getInt('notif_hour') ?? 20;
+    final int minute = prefs.getInt('notif_minute') ?? 0;
+    TimeOfDay reminderTime = TimeOfDay(hour: hour, minute: minute);
+
+    if (!context.mounted) return;
 
     showModalBottomSheet(
       context: context,
@@ -738,8 +791,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(ctx);
+                  onPressed: () async {
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setBool('notif_daily_enabled', dailyReminder);
+                    await prefs.setInt('notif_hour', reminderTime.hour);
+                    await prefs.setInt('notif_minute', reminderTime.minute);
+
+                    if (ctx.mounted) Navigator.pop(ctx);
+                    if (!context.mounted) return;
+
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
@@ -766,11 +826,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   // ---- KEAMANAN PIN ----
-  void _showPinSecurity(BuildContext context) {
+  void _showPinSecurity(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? currentPin = prefs.getString('app_pin');
+
     final pinCtrl = TextEditingController();
     final confirmCtrl = TextEditingController();
     bool obscure1 = true;
     bool obscure2 = true;
+
+    if (!context.mounted) return;
 
     showModalBottomSheet(
       context: context,
@@ -797,9 +862,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Text('Lindungi aplikasi dengan PIN 4 digit', style: AppTextStyles.bodySmall),
+                Text(
+                  currentPin != null && currentPin.isNotEmpty
+                      ? 'PIN keamanan saat ini aktif. Masukkan PIN baru untuk mengubah.'
+                      : 'Lindungi aplikasi dengan PIN 4 digit.',
+                  style: AppTextStyles.bodySmall,
+                ),
                 const SizedBox(height: 20),
-                Text('PIN Baru', style: AppTextStyles.labelMedium),
+                Text('PIN Baru (4 Digit)', style: AppTextStyles.labelMedium),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: pinCtrl,
@@ -817,7 +887,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Text('Konfirmasi PIN', style: AppTextStyles.labelMedium),
+                Text('Konfirmasi PIN Baru', style: AppTextStyles.labelMedium),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: confirmCtrl,
@@ -842,18 +912,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     onPressed: () async {
                       if (pinCtrl.text.length != 4) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('PIN harus 4 digit!',
-                              style: AppTextStyles.bodyMedium.copyWith(color: Colors.white)),
-                            backgroundColor: AppColors.expense, behavior: SnackBarBehavior.floating,
+                          SnackBar(
+                            content: Text('PIN harus 4 digit!',
+                                style: AppTextStyles.bodyMedium.copyWith(color: Colors.white)),
+                            backgroundColor: AppColors.expense,
+                            behavior: SnackBarBehavior.floating,
                           ),
                         );
                         return;
                       }
                       if (pinCtrl.text != confirmCtrl.text) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('PIN tidak cocok!',
-                              style: AppTextStyles.bodyMedium.copyWith(color: Colors.white)),
-                            backgroundColor: AppColors.expense, behavior: SnackBarBehavior.floating,
+                          SnackBar(
+                            content: Text('PIN tidak cocok!',
+                                style: AppTextStyles.bodyMedium.copyWith(color: Colors.white)),
+                            backgroundColor: AppColors.expense,
+                            behavior: SnackBarBehavior.floating,
                           ),
                         );
                         return;
@@ -867,7 +941,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           content: Row(children: [
                             const Icon(Icons.lock_rounded, color: Colors.white, size: 18),
                             const SizedBox(width: 8),
-                            Text('PIN berhasil diatur!',
+                            Text('PIN berhasil disimpan!',
                                 style: AppTextStyles.bodyMedium.copyWith(color: Colors.white)),
                           ]),
                           backgroundColor: AppColors.primaryDark,
@@ -884,6 +958,36 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     label: Text('Simpan PIN', style: AppTextStyles.headingSmall.copyWith(color: Colors.white)),
                   ),
                 ),
+                if (currentPin != null && currentPin.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.remove('app_pin');
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('PIN telah dihapus/dinonaktifkan.',
+                                style: AppTextStyles.bodyMedium.copyWith(color: Colors.white)),
+                            backgroundColor: AppColors.expense,
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.expense,
+                        side: const BorderSide(color: AppColors.expense),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
+                      ),
+                      icon: const Icon(Icons.lock_open_rounded, size: 18),
+                      label: Text('Hapus / Matikan PIN', style: AppTextStyles.labelMedium),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 8),
               ],
             ),
@@ -901,14 +1005,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Row(
           children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                gradient: AppColors.primaryGradient,
-                borderRadius: BorderRadius.circular(14),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.asset(
+                'assets/images/logo.png',
+                width: 48,
+                height: 48,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    gradient: AppColors.primaryGradient,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 26),
+                ),
               ),
-              child: const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 26),
             ),
             const SizedBox(width: 12),
             Column(

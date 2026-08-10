@@ -4,12 +4,17 @@ import 'package:go_router/go_router.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/register_screen.dart';
+import '../../features/auth/pin_lock_screen.dart';
 import '../../features/dashboard/dashboard_screen.dart';
 import '../../features/history/history_screen.dart';
 import '../../features/transaction/add_transaction_screen.dart';
 import '../../features/report/report_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../widgets/main_scaffold.dart';
+
+import 'package:shared_preferences/shared_preferences.dart';
+
+final pinUnlockedProvider = StateProvider<bool>((ref) => false);
 
 // Route index mapping
 int _indexFromLocation(String location) {
@@ -29,16 +34,27 @@ int _indexFromLocation(String location) {
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final user = ref.watch(currentUserProvider);
+  final isUnlocked = ref.watch(pinUnlockedProvider);
 
   return GoRouter(
     initialLocation: user != null ? '/' : '/login',
-    redirect: (context, state) {
+    redirect: (context, state) async {
       final loggedIn = user != null;
       final isAuthRoute = state.matchedLocation == '/login' ||
           state.matchedLocation == '/register';
+      final isPinRoute = state.matchedLocation == '/pin-lock';
 
       if (!loggedIn && !isAuthRoute) return '/login';
       if (loggedIn && isAuthRoute) return '/';
+
+      if (loggedIn && !isUnlocked && !isPinRoute) {
+        final prefs = await SharedPreferences.getInstance();
+        final pin = prefs.getString('app_pin');
+        if (pin != null && pin.isNotEmpty) {
+          return '/pin-lock';
+        }
+      }
+
       return null;
     },
     routes: [
@@ -50,6 +66,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/register',
         pageBuilder: (context, state) => _slide(state, const RegisterScreen()),
+      ),
+      GoRoute(
+        path: '/pin-lock',
+        pageBuilder: (context, state) => _slide(state, const PinLockScreen()),
       ),
 
       // Add transaction (full screen modal)

@@ -41,7 +41,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         _nameController.text.trim(),
       );
       if (user != null && mounted) {
-        ref.read(currentUserProvider.notifier).state = user;
+        ref.read(currentUserProvider.notifier).setUser(user);
         context.go('/');
       }
     } catch (e) {

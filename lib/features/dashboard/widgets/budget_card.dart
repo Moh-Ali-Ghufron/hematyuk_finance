@@ -245,8 +245,7 @@ class BudgetCard extends ConsumerWidget {
               final val = double.tryParse(controller.text.replaceAll('.', '').replaceAll(',', ''));
               if (val != null && val > 0) {
                 await ref.read(budgetRepositoryProvider).setMonthlyBudget(val);
-                // ignore: unused_result
-                ref.invalidate(budgetRepositoryProvider);
+                ref.read(dashboardProvider.notifier).refresh();
                 if (ctx.mounted) Navigator.pop(ctx);
               }
             },

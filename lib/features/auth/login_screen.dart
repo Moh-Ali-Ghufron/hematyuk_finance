@@ -38,7 +38,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _passwordController.text,
       );
       if (user != null && mounted) {
-        ref.read(currentUserProvider.notifier).state = user;
+        ref.read(currentUserProvider.notifier).setUser(user);
         context.go('/');
       }
     } catch (e) {
@@ -63,7 +63,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final repo = ref.read(authRepositoryProvider);
       final user = await repo.signInWithGoogle();
       if (user != null && mounted) {
-        ref.read(currentUserProvider.notifier).state = user;
+        ref.read(currentUserProvider.notifier).setUser(user);
         context.go('/');
       }
     } catch (e) {
@@ -264,54 +264,40 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Widget _buildLogo() {
-    return Row(
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            gradient: AppColors.primaryGradient,
-            borderRadius: BorderRadius.circular(14),
+    return Image.asset(
+      'assets/images/logo.png',
+      height: 72,
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stackTrace) => Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              gradient: AppColors.primaryGradient,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(Icons.account_balance_wallet_rounded,
+                color: Colors.white, size: 26),
           ),
-          child: Stack(
-            alignment: Alignment.center,
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.account_balance_wallet_rounded,
-                  color: Colors.white, size: 26),
-              Positioned(
-                right: 6,
-                top: 6,
-                child: Container(
-                  width: 14,
-                  height: 14,
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.arrow_upward_rounded,
-                      color: AppColors.primaryDark, size: 10),
-                ),
+              Text(
+                'HematYuk',
+                style: AppTextStyles.headingMedium
+                    .copyWith(color: AppColors.primaryDark),
+              ),
+              Text(
+                'Finance',
+                style: AppTextStyles.bodySmall
+                    .copyWith(color: AppColors.primaryBright),
               ),
             ],
           ),
-        ),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'HematYuk',
-              style: AppTextStyles.headingMedium
-                  .copyWith(color: AppColors.primaryDark),
-            ),
-            Text(
-              'Finance',
-              style: AppTextStyles.bodySmall
-                  .copyWith(color: AppColors.primaryBright),
-            ),
-          ],
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

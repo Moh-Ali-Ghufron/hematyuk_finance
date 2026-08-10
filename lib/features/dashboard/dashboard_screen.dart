@@ -28,11 +28,11 @@ class DashboardScreen extends ConsumerWidget {
         onRefresh: () async {
           ref.read(dashboardProvider.notifier).refresh();
         },
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
+        child: const SingleChildScrollView(
+          physics: AlwaysScrollableScrollPhysics(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               SizedBox(height: 8),
               BalanceCard(),
               SizedBox(height: 16),

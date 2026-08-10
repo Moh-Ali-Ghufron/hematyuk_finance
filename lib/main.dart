@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'data/models/category_model.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 
@@ -10,6 +11,7 @@ void main() async {
 
   // Initialize Indonesian locale for intl
   await initializeDateFormatting('id_ID', null);
+  await CategoryModel.loadCustomCategories();
 
   // Status bar style
   SystemChrome.setSystemUIOverlayStyle(
